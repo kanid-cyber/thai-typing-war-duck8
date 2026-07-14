@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สงคราม 3 แถว - โหมดเอาตัวรอด</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            overflow: hidden;
+            background-color: #020617; /* slate-950 */
+        }
+        #game-container {
+            background-color: #0f172a; /* slate-900 */
+            border: 2px solid #334155; /* slate-700 */
+            position: relative;
+            width: 100%;
+            height: 75vh;
+            overflow: hidden;
+        }
+        .lane {
+            position: absolute;
+            width: 100%;
+            height: 33.33%;
+            display: flex;
+            align-items: center;
+            border-bottom: 2px dashed #1e293b; /* slate-800 */
+        }
+        #lane-top { top: 0; }
+        #lane-middle { top: 33.33%; }
+        #lane-bottom { top: 66.66%; border-bottom: none; }
+
+        .word {
+            position: absolute;
+            width: 160px;
+            height: 115px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #1e293b;
+            white-space: nowrap;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        /* Adjust text position based on animal */
+        .duck-text { padding-top: 25px; }
+        .rabbit-text { padding-top: 55px; }
+        .dog-text { color: #dc2626; padding-top: 25px; }
+        .elephant-text { padding-top: 10px; }
+        .lion-text { padding-top: 45px; }
+
+        .word-text {
+            display: inline-block;
+        }
+        .word.destroyed {
+            animation: explode 0.3s forwards;
+        }
+        .correct-char {
+            color: #16a34a !important;
+        }
+        
+        @keyframes explode {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+
+        #overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-4xl">
+        <!-- Header -->
+        <div class="flex justify-between items-center bg-slate-800 p-3 rounded-t-lg text-white text-center">
+            <h1 class="text-2xl font-bold">สงคราม 3 แถว</h1>
+            <div class="flex gap-6">
+                <div>
+                    <span class="font-semibold">คะแนน:</span>
+                    <span id="score-display" class="text-2xl font-bold text-amber-400">0</span>
+                </div>
+                <div>
+                    <span class="font-semibold">เวลา:</span>
+                    <span id="timer-display" class="text-2xl font-bold text-sky-400">90</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Container -->
+        <div id="game-container">
+            <div id="lane-top" class="lane"></div>
+            <div id="lane-middle" class="lane"></div>
+            <div id="lane-bottom" class="lane"></div>
+
+            <!-- Overlay Screens -->
+            <div id="overlay">
+                <div id="start-screen" class="text-center text-white">
+                    <h1 class="text-5xl font-bold mb-4">โหมดเอาตัวรอด</h1>
+                    <p class="text-xl mb-8">ทำคะแนนให้ได้มากที่สุดใน 90 วินาที!</p>
+                    <button id="start-btn" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-10 rounded-lg text-2xl">เริ่มเกม</button>
+                </div>
+                <div id="end-screen" class="text-center text-white hidden">
+                    <h1 class="text-5xl font-bold mb-2">หมดเวลา!</h1>
+                    <p class="text-3xl mb-6">คะแนนของคุณ: <span id="final-score" class="font-bold text-amber-400">0</span></p>
+                    <button id="restart-btn" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-10 rounded-lg text-2xl">เล่นอีกครั้ง</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="bg-slate-800 p-4 rounded-b-lg">
+            <input type="text" id="input-box" class="w-full p-3 bg-slate-700 border-2 border-slate-600 text-white rounded-lg text-3xl text-center focus:outline-none focus:ring-2 focus:ring-sky-500" placeholder="..." disabled>
+        </div>
+    </div>
+
+    <script>
+        const gameContainer = document.getElementById('game-container');
+        const lanes = { top: document.getElementById('lane-top'), middle: document.getElementById('lane-middle'), bottom: document.getElementById('lane-bottom') };
+        const inputBox = document.getElementById('input-box');
+        const scoreDisplay = document.getElementById('score-display');
+        const timerDisplay = document.getElementById('timer-display');
+        const overlay = document.getElementById('overlay');
+        const startScreen = document.getElementById('start-screen');
+        const endScreen = document.getElementById('end-screen');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const startBtn = document.getElementById('start-btn');
+        const restartBtn = document.getElementById('restart-btn');
+
+        // คำศัพท์บทที่ 8
+        const wordList = ["การขาย", "กระจ่าง", "กิจการ", "กิจกรรม", "ข้างขวา", "ข่าวคราว", "ขอบเขต", "ข้าพเจ้า", "ความจริง", "จุกจิก", "จุไร", "จำเลย", "จากใจ", "จิตใจ", "จริงใจ", "จำนวน", "จัดสรร", "แจ่มแจ้ง", "ชาติชาย", "ชาติไทย", "ชอบใจ", "ชอบพอ", "ชั่วเวลา", "ชั่วคราว", "ตรวจ", "ตำรวจ", "ตรอง", "ตรึงใจ", "ปัจจัย", "ประจำใจ", "ฝ่ายขวา", "ฝ่ายค้าน", "ร้ายกาจ", "รับจ้าง", "เสี่ยง", "เสียหาย", "สนใจ", "ใส่ใจ", "สมใจ", "เสียใจ", "สมสวย", "ไก่แจ้", "ตำไทย", "จำเจ", "ชีวิต", "ตาข่าย", "ฟักไข่", "จราจร", "ติดขัด", "ขาวดำ", "ขยัน", "ขับร้อง", "ยอกย้อน", "จาบจ้วง", "เจาะลึก", "ใฝ่ฝัน", "ดวงใจ", "จดจำ", "จุนเจือ", "ชมเชย", "ชื่นชม", "ชื่นชอบ", "ขายของ", "กำจาย", "ขายไข่", "ขายดี", "แข่งขัน", "ข้าราชการ", "ค้าขาย", "ควบคุม", "คอยชม", "ควายถึก", "จำปา", "เจือจาง", "ชิดชอบ", "ชวนชื่น", "ผ่อนผัน", "ผ้าใหม่", "มหาราช", "อำนาจ"];
+        const words = [...new Set(wordList)];
+
+        const animalImages = [
+            { class: 'duck-text', image: 'https://i.postimg.cc/pd69RTcG/Yellow-Duck-PNG-Picture.png' },
+            { class: 'rabbit-text', image: 'https://i.postimg.cc/kgTxBYrY/Screenshot-20250828-212843-Samsung-Internet-removebg-preview.png' },
+            { class: 'dog-text', image: 'https://i.postimg.cc/V6J6D4V6/Screenshot-20250828-214346-Samsung-Internet-removebg-preview.png' },
+            { class: 'elephant-text', image: 'https://i.postimg.cc/d0BdzW6j/Screenshot-20250828-215108-Samsung-Internet-removebg-preview.png' },
+            { class: 'lion-text', image: 'https://i.postimg.cc/0y32r7Q1/Screenshot-20250828-215401-Samsung-Internet-removebg-preview.png' }
+        ];
+
+        let score = 0;
+        let timeLeft = 90;
+        let timerInterval;
+        let gameLoopId;
+        let activeWords = [];
+        let wordPool = [];
+        const GAME_SPEED = 1.1; // Speed reduced by 25% from 1.5
+
+        function startGame() {
+            score = 0;
+            timeLeft = 90;
+            wordPool = [...words].sort(() => Math.random() - 0.5);
+            
+            scoreDisplay.textContent = score;
+            timerDisplay.textContent = timeLeft;
+
+            activeWords = [];
+            Object.values(lanes).forEach(lane => lane.innerHTML = '');
+            
+            inputBox.disabled = false;
+            inputBox.value = '';
+            inputBox.focus();
+            overlay.style.display = 'none';
+
+            timerInterval = setInterval(updateTimer, 1000);
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+        
+        function stopGame() {
+            cancelAnimationFrame(gameLoopId);
+            clearInterval(timerInterval);
+            inputBox.disabled = true;
+            finalScoreDisplay.textContent = score;
+            endScreen.classList.remove('hidden');
+            overlay.style.display = 'flex';
+        }
+
+        function updateTimer() {
+            timeLeft--;
+            timerDisplay.textContent = timeLeft;
+            if (timeLeft <= 0) {
+                stopGame();
+            }
+        }
+
+        function spawnWord(laneKey) {
+            if (wordPool.length === 0) {
+                 wordPool = [...words].sort(() => Math.random() - 0.5);
+            }
+            const wordText = wordPool.pop();
+            const animal = animalImages[0]; // Only use duck
+            
+            const wordEl = document.createElement('div');
+            wordEl.className = 'word';
+            wordEl.classList.add(animal.class);
+            wordEl.style.backgroundImage = `url('${animal.image}')`;
+            wordEl.innerHTML = `<span class="word-text">${wordText.split('').map(char => `<span>${char}</span>`).join('')}</span>`;
+            
+            const direction = (laneKey === 'middle') ? -1 : 1;
+            const startX = (direction === 1) ? -180 : gameContainer.offsetWidth;
+
+            lanes[laneKey].appendChild(wordEl);
+            activeWords.push({ element: wordEl, text: wordText, x: startX, direction: direction, lane: laneKey });
+        }
+
+        function gameLoop() {
+            const containerWidth = gameContainer.offsetWidth;
+            const SAFE_SPAWN_DISTANCE = 250;
+
+            Object.keys(lanes).forEach(laneKey => {
+                const laneWords = activeWords.filter(w => w.lane === laneKey);
+                const lastWord = laneWords[laneWords.length - 1];
+                let canSpawn = false;
+
+                if (!lastWord) {
+                    canSpawn = true; 
+                } else {
+                    const direction = lastWord.direction;
+                    if (direction === 1) { 
+                        if (lastWord.x > SAFE_SPAWN_DISTANCE) canSpawn = true;
+                    } else { 
+                        if (lastWord.x < containerWidth - SAFE_SPAWN_DISTANCE) canSpawn = true;
+                    }
+                }
+                
+                if (canSpawn) {
+                    spawnWord(laneKey);
+                }
+            });
+
+            activeWords.forEach((word, index) => {
+                word.x += word.direction * GAME_SPEED;
+                
+                const flipTransform = (word.direction === 1) ? 'scaleX(-1)' : '';
+                word.element.style.transform = `translateX(${word.x}px) ${flipTransform}`;
+                
+                const textSpan = word.element.querySelector('.word-text');
+                if (textSpan) {
+                    textSpan.style.transform = flipTransform;
+                }
+
+                if ((word.direction === 1 && word.x > containerWidth) || (word.direction === -1 && word.x < -180)) {
+                    word.element.remove();
+                    activeWords.splice(index, 1);
+                }
+            });
+
+            const typedText = inputBox.value;
+            if (typedText.length > 0) {
+                const isAnyWordMatching = activeWords.some(word => word.text.startsWith(typedText));
+                if (!isAnyWordMatching) {
+                    inputBox.value = '';
+                    handleInput();
+                }
+            }
+
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        function handleInput() {
+            const typedText = inputBox.value;
+            
+            const isPathValid = activeWords.some(word => word.text.startsWith(typedText));
+
+            if (!isPathValid && typedText.length > 0) {
+                inputBox.value = typedText.slice(0, -1);
+                return;
+            }
+
+            let completedWord = null;
+
+            activeWords.forEach(word => {
+                const spans = word.element.querySelectorAll('.word-text > span');
+                if (word.text.startsWith(typedText)) {
+                    for (let i = 0; i < typedText.length; i++) spans[i].classList.add('correct-char');
+                    for (let i = typedText.length; i < spans.length; i++) spans[i].classList.remove('correct-char');
+                } else {
+                    spans.forEach(span => span.classList.remove('correct-char'));
+                }
+
+                if (typedText.length > 0 && typedText === word.text) {
+                    completedWord = word;
+                }
+            });
+
+            if (completedWord) {
+                score++;
+                scoreDisplay.textContent = score;
+                
+                completedWord.element.classList.add('destroyed');
+                const index = activeWords.indexOf(completedWord);
+                if (index > -1) activeWords.splice(index, 1);
+                setTimeout(() => completedWord.element.remove(), 300);
+
+                inputBox.value = '';
+                handleInput();
+            }
+        }
+
+        startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', () => {
+             endScreen.classList.add('hidden');
+             startScreen.classList.remove('hidden');
+             startGame();
+        });
+        inputBox.addEventListener('input', handleInput);
+    </script>
+</body>
+</html>
